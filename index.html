@@ -1,0 +1,698 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>金融看板 | Financial Dashboard</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html { scroll-behavior: smooth; }
+
+        body {
+            background: #0f1117;
+            color: #e0e0e0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+            line-height: 1.6;
+        }
+
+        /* Ticker */
+        .ticker-wrapper {
+            position: sticky; top: 0; z-index: 100;
+            background: #0f1117;
+            border-bottom: 1px solid #1e2030;
+            overflow: hidden;
+            height: 54px;
+        }
+        .ticker-track {
+            display: flex;
+            align-items: center;
+            height: 54px;
+            white-space: nowrap;
+            will-change: transform;
+        }
+        .ticker-item {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 0 28px;
+            font-size: 15px;
+            color: #999;
+            border-right: 1px solid #1e2030;
+            cursor: default;
+        }
+        .ticker-item .t-name { color: #888; font-size: 13px; }
+        .ticker-item .t-price { color: #fff; font-weight: 600; font-size: 15px; }
+        .ticker-item .t-change { font-size: 13px; }
+        .ticker-item .t-up { color: #2ecc71; }
+        .ticker-item .t-down { color: #e74c3c; }
+
+        /* Header */
+        .dashboard-header {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 20px 0 12px; flex-wrap: wrap; gap: 12px;
+        }
+        .dashboard-header .logo {
+            font-size: 22px; font-weight: 700; color: #fff; letter-spacing: -0.5px;
+        }
+        .dashboard-header .logo span {
+            color: #555; font-weight: 400; font-size: 13px; margin-left: 10px;
+        }
+        .header-nav { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; }
+        .header-nav a {
+            color: #666; text-decoration: none; font-size: 12px;
+            padding: 5px 10px; border-radius: 6px; transition: all 0.2s;
+        }
+        .header-nav a:hover { color: #ccc; background: #1a1d29; }
+        .header-right { display: flex; align-items: center; gap: 12px; }
+        #current-time { font-size: 12px; color: #555; font-variant-numeric: tabular-nums; }
+        .refresh-btn {
+            background: #1a1d29; border: 1px solid #2a2d3a; color: #888;
+            padding: 5px 12px; border-radius: 6px; cursor: pointer;
+            font-size: 12px; transition: all 0.2s;
+        }
+        .refresh-btn:hover { color: #fff; border-color: #3a3d4a; }
+
+        /* Container */
+        .container { max-width: 1440px; margin: 0 auto; padding: 0 24px; }
+
+        /* Hero */
+        .hero { padding: 28px 0 24px; }
+        .hero-badge {
+            display: inline-block; background: rgba(231,76,60,0.12); color: #e74c3c;
+            padding: 4px 12px; border-radius: 4px; font-size: 11px; font-weight: 700;
+            letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 12px;
+        }
+        .hero h1 { font-size: 26px; font-weight: 700; color: #fff; margin-bottom: 8px; }
+        .hero .subtitle {
+            color: #777; font-size: 13px; margin-bottom: 8px;
+            max-width: 820px; line-height: 1.7;
+        }
+        .hero-price { margin-bottom: 16px; min-height: 30px; }
+        .hero-chart {
+            height: 460px; border-radius: 12px; overflow: hidden;
+            border: 1px solid #2a2d3a; background: #1a1d29;
+        }
+
+        /* Layer Sections */
+        .layer { padding: 28px 0; }
+        .layer-header { display: flex; align-items: baseline; gap: 10px; margin-bottom: 4px; }
+        .layer-number {
+            font-size: 11px; font-weight: 700; padding: 3px 8px;
+            border-radius: 4px; letter-spacing: 1px;
+        }
+        .layer-1 .layer-number { background: rgba(240,185,11,0.12); color: #f0b90b; }
+        .layer-2 .layer-number { background: rgba(52,152,219,0.12); color: #3498db; }
+        .layer-3 .layer-number { background: rgba(46,204,113,0.12); color: #2ecc71; }
+        .layer-4 .layer-number { background: rgba(155,89,182,0.12); color: #9b59b6; }
+        .layer-header h2 { font-size: 19px; color: #fff; font-weight: 600; }
+        .layer-header h2 .en { color: #444; font-size: 13px; font-weight: 400; margin-left: 6px; }
+        .layer-desc { color: #555; font-size: 13px; margin-bottom: 16px; }
+
+        /* Cards Grid */
+        .cards-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+        @media (max-width: 1080px) { .cards-grid { grid-template-columns: repeat(2, 1fr); } }
+        @media (max-width: 640px) {
+            .cards-grid { grid-template-columns: 1fr; }
+            .hero h1 { font-size: 20px; }
+            .hero-chart { height: 340px; }
+            .dashboard-header .logo span { display: none; }
+        }
+
+        .card {
+            background: #1a1d29; border: 1px solid #22253a;
+            border-radius: 12px; overflow: hidden; transition: border-color 0.2s;
+        }
+        .card:hover { border-color: #3a3d4a; }
+        .card-info { padding: 14px 16px 0; }
+        .card-info h3 { font-size: 13px; font-weight: 600; color: #ddd; margin-bottom: 2px; }
+        .card-info p { font-size: 11px; color: #555; line-height: 1.4; }
+        .card-price { margin-top: 6px; min-height: 24px; }
+        .card-price .loading { color: #333; font-size: 11px; }
+        .card-chart { height: 200px; background: #1a1d29; }
+
+        /* Info Cards */
+        .info-card {
+            background: #1a1d29; border: 1px solid #22253a; border-radius: 12px;
+            padding: 18px 18px 16px; display: flex; flex-direction: column;
+            justify-content: space-between; transition: border-color 0.2s;
+        }
+        .info-card:hover { border-color: #3a3d4a; }
+        .info-card h3 { font-size: 13px; font-weight: 600; color: #ddd; margin-bottom: 6px; }
+        .info-card .desc { font-size: 12px; color: #666; line-height: 1.5; }
+        .info-card .key-points { list-style: none; margin: 10px 0; }
+        .info-card .key-points li {
+            font-size: 12px; color: #888; padding: 5px 0;
+            border-bottom: 1px solid #1e2030;
+        }
+        .info-card .key-points li:last-child { border-bottom: none; }
+        .info-card .key-points li::before { content: '\203A'; margin-right: 8px; font-weight: 700; }
+        .layer-4 .info-card .key-points li::before { color: #9b59b6; }
+        .info-card .source-link {
+            display: inline-block; color: #9b59b6; text-decoration: none;
+            font-size: 11px; padding: 5px 12px;
+            border: 1px solid rgba(155,89,182,0.25); border-radius: 6px;
+            transition: all 0.2s; margin-top: 6px; align-self: flex-start;
+        }
+        .info-card .source-link:hover {
+            background: rgba(155,89,182,0.08); border-color: #9b59b6;
+        }
+
+        /* Calendar */
+        .calendar-section { padding: 28px 0 40px; }
+        .calendar-section h2 { font-size: 19px; color: #fff; font-weight: 600; margin-bottom: 4px; }
+        .calendar-container {
+            height: 480px; border-radius: 12px; overflow: hidden;
+            border: 1px solid #22253a; background: #1a1d29;
+        }
+
+        .divider { height: 1px; background: linear-gradient(to right, transparent, #1e2030, transparent); }
+        .footer { text-align: center; padding: 24px 0 40px; color: #333; font-size: 11px; line-height: 1.8; }
+
+        ::-webkit-scrollbar { width: 5px; }
+        ::-webkit-scrollbar-track { background: #0f1117; }
+        ::-webkit-scrollbar-thumb { background: #2a2d3a; border-radius: 3px; }
+
+        .tradingview-widget-container { height: 100%; width: 100%; }
+    </style>
+</head>
+<body>
+
+    <!-- ========== Ticker Tape (CNBC Data) ========== -->
+    <div class="ticker-wrapper">
+        <div class="ticker-track" id="ticker-track">
+            <span class="ticker-item"><span class="t-name">加载行情数据...</span></span>
+        </div>
+    </div>
+
+    <div class="container">
+
+        <!-- ========== Header ========== -->
+        <div class="dashboard-header">
+            <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
+                <div class="logo">金融看板<span>Financial Dashboard</span></div>
+                <nav class="header-nav">
+                    <a href="#hero">终极指标</a>
+                    <a href="#layer1">价格</a>
+                    <a href="#layer2">流动性</a>
+                    <a href="#layer3">基本面</a>
+                    <a href="#layer4">情绪</a>
+                    <a href="#calendar">日历</a>
+                </nav>
+            </div>
+            <div class="header-right">
+                <span id="update-status" style="font-size:11px;color:#333"></span>
+                <span id="current-time"></span>
+                <button class="refresh-btn" onclick="refreshAll()">刷新</button>
+            </div>
+        </div>
+
+        <!-- ========== Hero: TIPS Real Yield ========== -->
+        <section class="hero" id="hero">
+            <div class="hero-badge">终极指标 ULTIMATE INDICATOR</div>
+            <h1>10年期 TIPS 实际收益率</h1>
+            <p class="subtitle">
+                同时包含名义利率水平（货币政策）、通胀预期（经济基本面）、期限溢价（风险偏好）。
+                实际利率越高，债务负担越重——谁的资产负债表先撑不住，谁先出问题。
+            </p>
+            <div class="hero-price" id="tips-price"><span style="color:#333;font-size:12px">加载中...</span></div>
+            <div class="hero-chart" id="tips-chart"></div>
+        </section>
+
+        <div class="divider"></div>
+
+        <!-- ========== Layer 1: Price Kings ========== -->
+        <section class="layer layer-1" id="layer1">
+            <div class="layer-header">
+                <span class="layer-number">第一层</span>
+                <h2>价格之王<span class="en">Price</span></h2>
+            </div>
+            <p class="layer-desc">告诉你"发生了什么" — 大多数专业投资者每天第一眼看的指标</p>
+            <div class="cards-grid">
+                <div class="card">
+                    <div class="card-info">
+                        <h3>10年期美债收益率</h3>
+                        <p>全球资产定价的锚，几乎所有资产的估值折现率基准</p>
+                        <div class="card-price" id="us10y-price"><span class="loading">加载中...</span></div>
+                    </div>
+                    <div class="card-chart" id="us10y-chart"></div>
+                </div>
+                <div class="card">
+                    <div class="card-info">
+                        <h3>美元指数 DXY (ICE)</h3>
+                        <p>全球流动性的开关 — 美元走强 = 全球美元流动性收紧</p>
+                        <div class="card-price" id="dxy-price"><span class="loading">加载中...</span></div>
+                    </div>
+                    <div class="card-chart" id="dxy-chart"></div>
+                </div>
+                <div class="card">
+                    <div class="card-info">
+                        <h3>2s10s 收益率曲线利差</h3>
+                        <p>倒挂通常被视为衰退信号，曲线形态变化本身就是关键信号</p>
+                        <div class="card-price" id="spread-price"><span class="loading">加载中...</span></div>
+                    </div>
+                    <div class="card-chart" id="spread-chart"></div>
+                </div>
+            </div>
+        </section>
+
+        <div class="divider"></div>
+
+        <!-- ========== Layer 2: Liquidity ========== -->
+        <section class="layer layer-2" id="layer2">
+            <div class="layer-header">
+                <span class="layer-number">第二层</span>
+                <h2>流动性<span class="en">Liquidity</span></h2>
+            </div>
+            <p class="layer-desc">告诉你"钱在哪里" — 资金的价格与实际松紧程度，政策利率与市场利率的脱钩本身就是信号</p>
+            <div class="cards-grid">
+                <div class="card">
+                    <div class="card-info">
+                        <h3>联邦基金有效利率</h3>
+                        <p>美联储政策利率，全球资金价格的锚点</p>
+                        <div class="card-price" id="fedfunds-price"><span class="loading">加载中...</span></div>
+                    </div>
+                    <div class="card-chart" id="fedfunds-chart"></div>
+                </div>
+                <div class="card">
+                    <div class="card-info">
+                        <h3>SOFR 担保隔夜融资利率</h3>
+                        <p>银行间实际资金松紧，与政策利率脱钩时尤需关注</p>
+                        <div class="card-price" id="sofr-price"><span class="loading">加载中...</span></div>
+                    </div>
+                    <div class="card-chart" id="sofr-chart"></div>
+                </div>
+                <div class="card">
+                    <div class="card-info">
+                        <h3>高收益信用利差 HY OAS</h3>
+                        <p>企业借钱比政府贵多少 — 利差飙升往往是危机的早期信号</p>
+                        <div class="card-price" id="hy-price"><span class="loading">加载中...</span></div>
+                    </div>
+                    <div class="card-chart" id="hy-chart"></div>
+                </div>
+            </div>
+        </section>
+
+        <div class="divider"></div>
+
+        <!-- ========== Layer 3: Fundamentals ========== -->
+        <section class="layer layer-3" id="layer3">
+            <div class="layer-header">
+                <span class="layer-number">第三层</span>
+                <h2>基本面<span class="en">Fundamentals</span></h2>
+            </div>
+            <p class="layer-desc">告诉你"经济怎么样" — 就业、通胀、产出的核心体征（注意数据质量问题）</p>
+            <div class="cards-grid">
+                <div class="card">
+                    <div class="card-info">
+                        <h3>失业率</h3>
+                        <p>美国经济核心体征 — 注意调查回复率从59%降至42.9%的质量问题</p>
+                        <div class="card-price" id="unrate-price"><span class="loading">加载中...</span></div>
+                    </div>
+                    <div class="card-chart" id="unrate-chart"></div>
+                </div>
+                <div class="card">
+                    <div class="card-info">
+                        <h3>CPI 消费者价格指数</h3>
+                        <p>通胀水平，直接决定央行政策行为方向</p>
+                        <div class="card-price" id="cpi-price"><span class="loading">加载中...</span></div>
+                    </div>
+                    <div class="card-chart" id="cpi-chart"></div>
+                </div>
+                <div class="card">
+                    <div class="card-info">
+                        <h3>Core PCE 核心个人消费支出</h3>
+                        <p>美联储首选通胀指标，剔除食品和能源波动</p>
+                        <div class="card-price" id="pce-price"><span class="loading">加载中...</span></div>
+                    </div>
+                    <div class="card-chart" id="pce-chart"></div>
+                </div>
+            </div>
+        </section>
+
+        <div class="divider"></div>
+
+        <!-- ========== Layer 4: Sentiment / Positioning ========== -->
+        <section class="layer layer-4" id="layer4">
+            <div class="layer-header">
+                <span class="layer-number">第四层</span>
+                <h2>情绪 / 定位<span class="en">Sentiment & Positioning</span></h2>
+            </div>
+            <p class="layer-desc">告诉你"大家怎么想" — 恐惧程度、头寸拥挤度、资金流向。波动率是二阶指标：告诉你市场有多紧张，但不告诉你为什么紧张</p>
+            <div class="cards-grid">
+                <div class="card">
+                    <div class="card-info">
+                        <h3>VIX 恐慌指数</h3>
+                        <p>市场对未来不确定性的集体定价 — 极低=自满过头，极高=恐慌过度</p>
+                        <div class="card-price" id="vix-price"><span class="loading">加载中...</span></div>
+                    </div>
+                    <div class="card-chart" id="vix-chart"></div>
+                </div>
+                <div class="info-card">
+                    <div>
+                        <h3>CFTC 期货持仓报告</h3>
+                        <p class="desc">谁在做多、谁在做空、头寸有多拥挤。投机净持仓变化是重要前瞻信号。</p>
+                        <ul class="key-points">
+                            <li>商业套保 vs 投机持仓对比</li>
+                            <li>净多/空头变化趋势</li>
+                            <li>极端持仓 = 潜在反转信号</li>
+                            <li>关注外汇、国债、商品期货</li>
+                        </ul>
+                    </div>
+                    <a class="source-link" href="https://www.cftc.gov/dea/futures/financial_lf.htm" target="_blank" rel="noopener">CFTC COT 报告 &rarr;</a>
+                </div>
+                <div class="info-card">
+                    <div>
+                        <h3>资金流向 Fund Flows</h3>
+                        <p class="desc">追踪全球资金在股/债/商品/现金之间的再配置方向。</p>
+                        <ul class="key-points">
+                            <li>股票 vs 债券 vs 货币市场基金</li>
+                            <li>发达市场 vs 新兴市场流向</li>
+                            <li>行业板块轮动信号</li>
+                            <li>ETF 资金流入/流出追踪</li>
+                        </ul>
+                    </div>
+                    <a class="source-link" href="https://www.iif.com/Research/Capital-Flows-and-Debt" target="_blank" rel="noopener">IIF 资金流向数据 &rarr;</a>
+                </div>
+            </div>
+        </section>
+
+        <div class="divider"></div>
+
+        <!-- ========== Economic Calendar ========== -->
+        <section class="calendar-section" id="calendar">
+            <h2>经济日历</h2>
+            <p class="layer-desc" style="margin-bottom:16px">追踪即将发布的关键经济数据 — NFP、CPI、GDP、央行决议等</p>
+            <div class="calendar-container">
+                <div class="tradingview-widget-container" style="height:100%;width:100%">
+                    <div class="tradingview-widget-container__widget" style="height:100%;width:100%"></div>
+                    <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-events.js" async>
+                    {
+                        "colorTheme": "dark",
+                        "isTransparent": true,
+                        "width": "100%",
+                        "height": "100%",
+                        "locale": "zh_CN",
+                        "importanceFilter": "0,1",
+                        "countryFilter": "us,cn,eu,jp,gb"
+                    }
+                    </script>
+                </div>
+            </div>
+        </section>
+
+        <!-- ========== Footer ========== -->
+        <div class="footer">
+            <p>数据来源：FRED (Federal Reserve Economic Data) &nbsp;|&nbsp; CNBC &nbsp;|&nbsp; TradingView</p>
+            <p>基于 LoneSchicksal 宏观分析框架构建</p>
+        </div>
+
+    </div>
+
+    <!-- ========== Scripts ========== -->
+    <script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
+    <script>
+        // ===== Clock =====
+        !function() {
+            function tick() {
+                var d = new Date();
+                document.getElementById('current-time').textContent =
+                    d.toLocaleString('zh-CN', {year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false});
+            }
+            setInterval(tick, 1000); tick();
+        }();
+
+        // ===== Config =====
+        var REFRESH_INTERVAL = 5 * 60 * 1000; // 5 minutes
+
+        var INDICATORS = [
+            { id:'tips',     fred:'DFII10',        years:3, color:'#e74c3c', suffix:'%', hero:true },
+            { id:'us10y',    cnbc:'US10Y',          years:1, color:'#f0b90b', suffix:'%' },
+            { id:'dxy',      cnbc:'.DXY',           years:1, color:'#f0b90b', suffix:''  },
+            { id:'spread',   fred:'T10Y2Y',        years:3, color:'#f0b90b', suffix:'%' },
+            { id:'fedfunds', fred:'DFF',            years:2, color:'#3498db', suffix:'%' },
+            { id:'sofr',     fred:'SOFR',           years:1, color:'#3498db', suffix:'%' },
+            { id:'hy',       fred:'BAMLH0A0HYM2',   years:2, color:'#3498db', suffix:'%' },
+            { id:'unrate',   fred:'UNRATE',         years:5, color:'#2ecc71', suffix:'%' },
+            { id:'cpi',      fred:'CPIAUCSL',       years:5, color:'#2ecc71', suffix:''  },
+            { id:'pce',      fred:'PCEPILFE',       years:5, color:'#2ecc71', suffix:''  },
+            { id:'vix',      cnbc:'.VIX',           years:1, color:'#9b59b6', suffix:''  },
+        ];
+
+        // Store chart instances for in-place updates
+        var _charts = {};  // id -> { chart, series }
+
+        // ===== Update price display =====
+        function updatePrice(cfg, data) {
+            var priceEl = document.getElementById(cfg.id + '-price');
+            var cur = data[data.length - 1];
+            var prev = data.length > 1 ? data[data.length - 2] : cur;
+            var chg = cur.value - prev.value;
+            var pct = prev.value !== 0 ? (chg / Math.abs(prev.value) * 100) : 0;
+            var sign = chg >= 0 ? '+' : '';
+            var clr = chg >= 0 ? '#2ecc71' : '#e74c3c';
+            var sz = cfg.hero ? '22' : '18';
+            priceEl.innerHTML =
+                '<span style="font-size:' + sz + 'px;font-weight:700;color:#fff">' +
+                    cur.value.toFixed(2) + (cfg.suffix||'') +
+                '</span>' +
+                '<span style="font-size:12px;color:' + clr + ';margin-left:8px">' +
+                    sign + chg.toFixed(2) + ' (' + sign + pct.toFixed(2) + '%)' +
+                '</span>' +
+                '<span style="font-size:10px;color:#444;margin-left:8px">' + cur.time + '</span>';
+        }
+
+        // ===== Create or update chart =====
+        function loadChart(cfg) {
+            var chartEl = document.getElementById(cfg.id + '-chart');
+            var priceEl = document.getElementById(cfg.id + '-price');
+
+            var url = cfg.cnbc
+                ? '/api/cnbc/' + cfg.cnbc + '?years=' + cfg.years
+                : '/api/fred/' + cfg.fred + '?years=' + cfg.years;
+
+            fetch(url)
+                .then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+                .then(function(raw) {
+                    // Normalize: CNBC returns {bars, quote}, FRED returns array
+                    var data, quote;
+                    if (cfg.cnbc) {
+                        data = raw.bars || [];
+                        quote = raw.quote || {};
+                    } else {
+                        data = raw;
+                    }
+                    if (!data.length) throw new Error('Empty');
+
+                    // Sync chart last point with real-time quote
+                    if (quote && quote.last) {
+                        var lastBar = data[data.length - 1];
+                        if (lastBar.time === quote.time) {
+                            lastBar.value = quote.last;
+                        } else if (quote.time > lastBar.time) {
+                            data.push({ time: quote.time, value: quote.last });
+                        }
+                    }
+
+                    // Price display
+                    if (quote && quote.last) {
+                        var chg = quote.change || 0;
+                        var pctStr = quote.change_pct || '0%';
+                        var sign = chg >= 0 ? '+' : '';
+                        var clr = chg >= 0 ? '#2ecc71' : '#e74c3c';
+                        priceEl.innerHTML =
+                            '<span style="font-size:18px;font-weight:700;color:#fff">' + quote.last.toFixed(2) + '</span>' +
+                            '<span style="font-size:12px;color:' + clr + ';margin-left:8px">' + sign + chg.toFixed(2) + ' (' + sign + pctStr + ')' + '</span>' +
+                            '<span style="font-size:10px;color:#444;margin-left:8px">' + (quote.time||'') + '</span>';
+                    } else {
+                        updatePrice(cfg, data);
+                    }
+
+                    if (_charts[cfg.id]) {
+                        // Update existing chart in place
+                        _charts[cfg.id].series.setData(data);
+                        _charts[cfg.id].chart.timeScale().fitContent();
+                    } else {
+                        // First load — create chart
+                        var chart = LightweightCharts.createChart(chartEl, {
+                            autoSize: true,
+                            layout: {
+                                background: { type: 'solid', color: '#1a1d29' },
+                                textColor: '#555',
+                                fontFamily: 'system-ui, -apple-system, sans-serif',
+                            },
+                            grid: {
+                                vertLines: { color: '#1e2030' },
+                                horzLines: { color: '#1e2030' },
+                            },
+                            timeScale: { borderColor: '#2a2d3a', timeVisible: false },
+                            rightPriceScale: { borderColor: '#2a2d3a' },
+                            crosshair: {
+                                vertLine: { color: 'rgba(255,255,255,0.08)', labelBackgroundColor: '#2a2d3a' },
+                                horzLine: { color: 'rgba(255,255,255,0.08)', labelBackgroundColor: '#2a2d3a' },
+                            },
+                        });
+                        var series = chart.addAreaSeries({
+                            topColor: cfg.color + '30',
+                            bottomColor: cfg.color + '05',
+                            lineColor: cfg.color,
+                            lineWidth: 2,
+                        });
+                        series.setData(data);
+                        chart.timeScale().fitContent();
+                        _charts[cfg.id] = { chart: chart, series: series };
+                    }
+                })
+                .catch(function(e) {
+                    console.error(cfg.id, e);
+                    if (!_charts[cfg.id]) {
+                        priceEl.innerHTML = '<span style="color:#e74c3c;font-size:11px">加载失败</span>';
+                        chartEl.innerHTML =
+                            '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#444;font-size:12px;text-align:center">' +
+                            'FRED:' + cfg.fred + ' 数据加载失败<br>请确认服务器正在运行</div>';
+                    }
+                });
+        }
+
+        // ===== Refresh all charts =====
+        function refreshAll() {
+            var s = document.getElementById('update-status');
+            s.textContent = '更新中...';
+            s.style.color = '#f0b90b';
+            INDICATORS.forEach(loadChart);
+            setTimeout(function() {
+                var now = new Date();
+                s.textContent = '已更新 ' + now.toLocaleTimeString('zh-CN', {hour:'2-digit',minute:'2-digit',hour12:false});
+                s.style.color = '#2ecc71';
+                setTimeout(function() { s.style.color = '#444'; }, 2000);
+            }, 3000);
+        }
+
+        // ===== Init =====
+        refreshAll();
+
+        // ===== Auto refresh =====
+        var _autoTimer = setInterval(refreshAll, REFRESH_INTERVAL);
+
+        // Countdown display
+        var _nextRefresh = Date.now() + REFRESH_INTERVAL;
+        setInterval(function() {
+            var left = Math.max(0, Math.round((_nextRefresh - Date.now()) / 1000));
+            var m = Math.floor(left / 60), sec = left % 60;
+            var el = document.getElementById('update-status');
+            if (el && el.style.color !== 'rgb(240, 185, 11)') {
+                var t = el.textContent.split('|')[0].trim();
+                el.textContent = (t.indexOf('已更新') === 0 ? t : '') + ' | 下次刷新 ' + m + ':' + (sec < 10 ? '0' : '') + sec;
+                el.style.color = '#444';
+            }
+            if (left <= 0) _nextRefresh = Date.now() + REFRESH_INTERVAL;
+        }, 1000);
+
+        // Reset countdown on manual refresh
+        var _origRefresh = refreshAll;
+        refreshAll = function() { _nextRefresh = Date.now() + REFRESH_INTERVAL; _origRefresh(); refreshTicker(); };
+
+        // ===== Ticker Tape =====
+        var TICKER_NAMES = {
+            'US10Y': '10Y T-Note', '.DXY': 'Dollar Index', '.VIX': 'VIX',
+            '.SPX': 'S&P 500', '@GC.1': 'Gold', 'EUR=': 'EUR/USD',
+            'JPY=': 'USD/JPY', 'CNH=': 'USD/CNH'
+        };
+
+        function buildTickerHTML(quotes) {
+            var html = '';
+            for (var i = 0; i < quotes.length; i++) {
+                var q = quotes[i];
+                var name = TICKER_NAMES[q.symbol] || q.name || q.symbol;
+                var chg = q.change || 0;
+                var sign = chg >= 0 ? '+' : '';
+                var cls = chg >= 0 ? 't-up' : 't-down';
+                var pctStr = String(q.change_pct || '0%').replace('%','').replace('+','').replace('-','').trim();
+                if (pctStr === 'UNCH' || pctStr === '') { pctStr = '0.00'; chg = 0; sign = ''; cls = 't-up'; }
+                var pctSign = chg >= 0 ? (chg === 0 ? '' : '+') : '-';
+                html += '<span class="ticker-item">' +
+                    '<span class="t-name">' + name + '</span>' +
+                    '<span class="t-price">' + q.last.toFixed(2) + '</span>' +
+                    '<span class="t-change ' + cls + '">' + sign + chg.toFixed(2) + ' (' + pctSign + pctStr + '%)</span>' +
+                    '</span>';
+            }
+            return html;
+        }
+
+        // JS-driven scroll so updates don't reset position
+        var _tickerPos = 0;
+        var _tickerPaused = false;
+        var _tickerHalf = 0; // width of one set of items
+
+        function renderTicker(quotes) {
+            var track = document.getElementById('ticker-track');
+            var html = buildTickerHTML(quotes);
+            track.innerHTML = html + html; // duplicate for loop
+            // Measure half width (one copy)
+            var items = track.querySelectorAll('.ticker-item');
+            _tickerHalf = 0;
+            for (var i = 0; i < items.length / 2; i++) {
+                _tickerHalf += items[i].offsetWidth;
+            }
+        }
+
+        function updateTickerData(quotes) {
+            var track = document.getElementById('ticker-track');
+            var items = track.querySelectorAll('.ticker-item');
+            if (items.length === 0) { renderTicker(quotes); return; }
+            // Update text in-place without touching DOM structure
+            var half = items.length / 2;
+            for (var i = 0; i < quotes.length && i < half; i++) {
+                var q = quotes[i];
+                var name = TICKER_NAMES[q.symbol] || q.name || q.symbol;
+                var chg = q.change || 0;
+                var sign = chg >= 0 ? '+' : '';
+                var cls = chg >= 0 ? 't-up' : 't-down';
+                var pctStr = String(q.change_pct || '0%').replace('%','').replace('+','').replace('-','').trim();
+                if (pctStr === 'UNCH' || pctStr === '') { pctStr = '0.00'; chg = 0; sign = ''; cls = 't-up'; }
+                var pctSign = chg >= 0 ? (chg === 0 ? '' : '+') : '-';
+                var priceText = q.last.toFixed(2);
+                var changeText = sign + chg.toFixed(2) + ' (' + pctSign + pctStr + '%)';
+                // Update both copies (i and i+half)
+                for (var j = 0; j < 2; j++) {
+                    var item = items[i + j * half];
+                    item.querySelector('.t-price').textContent = priceText;
+                    var ce = item.querySelector('.t-change');
+                    ce.textContent = changeText;
+                    ce.className = 't-change ' + cls;
+                }
+            }
+        }
+
+        // Scroll animation loop
+        (function animateTicker() {
+            var track = document.getElementById('ticker-track');
+            track.addEventListener('mouseenter', function() { _tickerPaused = true; });
+            track.addEventListener('mouseleave', function() { _tickerPaused = false; });
+
+            function step() {
+                if (!_tickerPaused && _tickerHalf > 0) {
+                    _tickerPos -= 0.5; // pixels per frame
+                    if (Math.abs(_tickerPos) >= _tickerHalf) _tickerPos = 0;
+                    track.style.transform = 'translateX(' + _tickerPos + 'px)';
+                }
+                requestAnimationFrame(step);
+            }
+            requestAnimationFrame(step);
+        })();
+
+        function refreshTicker() {
+            fetch('/api/cnbc/quotes')
+                .then(function(r) { return r.json(); })
+                .then(function(quotes) {
+                    if (_tickerHalf === 0) renderTicker(quotes);
+                    else updateTickerData(quotes);
+                })
+                .catch(function(e) { console.error('Ticker error:', e); });
+        }
+
+        refreshTicker();
+        setInterval(refreshTicker, 30000);
+    </script>
+
+</body>
+</html>
