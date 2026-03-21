@@ -1,0 +1,5 @@
+fred_cache/
+analysis.json
+__pycache__/
+*.pyc
+.DS_Store
