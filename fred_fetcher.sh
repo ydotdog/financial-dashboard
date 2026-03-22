@@ -1,7 +1,7 @@
 #!/bin/bash
 # FRED Data Fetcher — runs independently of the Python server.
 # Periodically downloads FRED CSV data via curl and saves to fred_cache/.
-# This bypasses the MacPacket VPN/proxy HTTP/2 issue that affects Python processes.
+# Avoids HTTP/2 issues by retrying with different protocols.
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 CACHE_DIR="$SCRIPT_DIR/fred_cache"
@@ -21,36 +21,66 @@ SERIES=(
 
 mkdir -p "$CACHE_DIR"
 
+# Cross-platform date offset: returns YYYY-MM-DD for N days ago
+date_ago() {
+    if date -v-1d +%Y-%m-%d >/dev/null 2>&1; then
+        date -v-${1}d +%Y-%m-%d  # macOS
+    else
+        date -d "$1 days ago" +%Y-%m-%d  # Linux
+    fi
+}
+
+fetch_one() {
+    local sid="$1" days="$2"
+    local start_date end_date url tmp out
+
+    start_date=$(date_ago "$days")
+    end_date=$(date +%Y-%m-%d)
+    url="https://fred.stlouisfed.org/graph/fredgraph.csv?id=${sid}&cosd=${start_date}&coed=${end_date}"
+    tmp="$CACHE_DIR/${sid}.csv.tmp"
+    out="$CACHE_DIR/${sid}.csv"
+
+    # Try default (HTTP/2), then HTTP/1.1 as fallback, with retries
+    local attempt proto
+    for attempt in 1 2 3 4 5; do
+        if [ "$attempt" -le 3 ]; then
+            proto=""  # default (HTTP/2)
+        else
+            proto="--http1.1"  # fallback
+        fi
+
+        curl -s --max-time 20 $proto \
+             -H "User-Agent: Mozilla/5.0" "$url" > "$tmp" 2>/dev/null
+
+        if [ -s "$tmp" ] && head -1 "$tmp" | grep -q "observation_date"; then
+            mv "$tmp" "$out"
+            return 0
+        fi
+        rm -f "$tmp"
+        sleep 1
+    done
+    return 1
+}
+
 fetch_all() {
-    local end_date=$(date +%Y-%m-%d)
+    local ok=0 fail=0
     for entry in "${SERIES[@]}"; do
         local sid="${entry%%:*}"
         local years="${entry##*:}"
         local days=$(( years * 365 + 30 ))
 
-        # macOS date: use -v flag for date arithmetic
-        local start_date=$(date -v-${days}d +%Y-%m-%d)
-
-        local url="https://fred.stlouisfed.org/graph/fredgraph.csv?id=${sid}&cosd=${start_date}&coed=${end_date}"
-        local tmp="$CACHE_DIR/${sid}.csv.tmp"
-        local out="$CACHE_DIR/${sid}.csv"
-
-        curl -s --max-time 15 --retry 3 --retry-all-errors --retry-delay 2 \
-             -H "User-Agent: Mozilla/5.0" "$url" -o "$tmp" 2>/dev/null
-
-        if [ $? -eq 0 ] && [ -s "$tmp" ] && head -1 "$tmp" | grep -q "observation_date"; then
-            mv "$tmp" "$out"
+        if fetch_one "$sid" "$days"; then
+            ok=$((ok + 1))
         else
-            rm -f "$tmp"
-            # Keep existing cache if fetch failed
+            fail=$((fail + 1))
         fi
     done
+    echo "  [fred_fetcher] Fetched: ${ok} ok, ${fail} failed ($(date +%H:%M:%S))"
 }
 
 # Initial fetch
 echo "  [fred_fetcher] Initial fetch..."
 fetch_all
-echo "  [fred_fetcher] Done. Refreshing every ${INTERVAL}s."
 
 # Loop
 while true; do
